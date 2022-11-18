@@ -18,10 +18,13 @@ import com.example.reggie_take_out.service.DishFlavorService;
 import com.example.reggie_take_out.service.DishService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +40,10 @@ public class DishController {
     private DishFlavorService dishFlavorService;
     @Resource
     private CategoryService categoryService;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RedisTemplate<String, List<DishDto>> redisTemplate;
 
     /**
      * 新增菜品
@@ -47,6 +54,8 @@ public class DishController {
     public R<String> save(@RequestBody DishDto dishDto){
         log.info(dishDto.toString());
         dishService.saveWithFlavor(dishDto);
+        String key = "dish_"+dishDto.getCategoryId()+"_"+dishDto.getStatus();
+        redisTemplate.delete(key);
         return R.success("新增成功!");
     }
 
@@ -59,7 +68,7 @@ public class DishController {
      */
 
     @GetMapping("/page")
-    public R<Page> page(int page,int pageSize,String name){
+    public R<Page<DishDto>> page(int page, int pageSize, String name){
         log.info("page = {},pageSize = {}, name = {}",page,pageSize,name);
         //构造分页构造器
         Page<Dish> pageInfo = new Page<>(page,pageSize);
@@ -115,6 +124,9 @@ public class DishController {
     public R<String> update(@RequestBody DishDto dishDto){
         log.info(dishDto.toString());
         dishService.updateWithFlavor(dishDto);
+        //更新数据需要清理redis中的数据
+        String key = "dish_"+dishDto.getCategoryId()+"_"+dishDto.getStatus();
+        redisTemplate.delete(key);
         return R.success("修改成功!");
     }
 
@@ -162,6 +174,16 @@ public class DishController {
      */
     @GetMapping("/list")
     public R<List<DishDto>> list(Dish dish){
+        List<DishDto> dishDtoList = null;
+
+        String key = "dish_"+dish.getCategoryId()+"_"+dish.getStatus();
+        //从redis中查询缓存
+        dishDtoList = redisTemplate.opsForValue().get(key);
+
+        if(dishDtoList!=null){
+            //若没查到直接返回
+            return R.success(dishDtoList);
+        }
         //构造查询条件
         LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(dish.getCategoryId()!=null,Dish::getCategoryId,dish.getCategoryId());
@@ -171,7 +193,7 @@ public class DishController {
 
         List<Dish> dishList = dishService.list(queryWrapper);
 
-        List<DishDto> dishDtoList = dishList.stream().map((item) ->{
+        dishDtoList = dishList.stream().map((item) ->{
 
             DishDto dishDto = new DishDto();
 
@@ -191,6 +213,8 @@ public class DishController {
 
             return dishDto;
         }).collect(Collectors.toList());
+        //将查询到的数据缓存到redis当中
+        redisTemplate.opsForValue().set(key,dishDtoList,60, TimeUnit.MINUTES);
 
         return R.success(dishDtoList);
     }

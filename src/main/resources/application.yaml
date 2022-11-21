@@ -49,4 +49,4 @@ mybatis-plus:
       id-type: ASSIGN_ID
 
 reggie:
-  path: E:\reggie_data\
+  path: /usr/local/img/

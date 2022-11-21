@@ -3,7 +3,6 @@ package com.example.reggie_take_out.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.reggie_take_out.common.R;
-import com.example.reggie_take_out.dto.DishDto;
 import com.example.reggie_take_out.entity.Category;
 import com.example.reggie_take_out.service.CategoryService;
 import lombok.extern.slf4j.Slf4j;
